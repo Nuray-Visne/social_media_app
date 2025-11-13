@@ -1,4 +1,5 @@
 from db import init_db, insert_post, get_post, get_image
+from uuid import UUID
 
 if __name__ == "__main__":
     init_db()
@@ -14,7 +15,6 @@ if __name__ == "__main__":
     print("Inserted post with image:", p3)
 
     # Read back
-    from uuid import UUID
     post = get_post(UUID(str(p2)))
     print("Got post:", post)
 

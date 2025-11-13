@@ -4,15 +4,14 @@ import uuid
 import mimetypes
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
-     
+
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
 
 
 # -----------------------------
-# Environment & connection pool
+# Environment & connection helper
 # -----------------------------
 def _make_conninfo() -> str:
     """
@@ -24,29 +23,24 @@ def _make_conninfo() -> str:
         return url
 
     host = os.getenv("PGHOST", "localhost")
-    port = os.getenv("PGPORT", "5445")
+    port = os.getenv("PGPORT", "5432")
     user = os.getenv("PGUSER", "postgres")
     password = os.getenv("PGPASSWORD", "")
     database = os.getenv("PGDATABASE", "postgres")
+    print(f"postgresql://{user}:{password}@{host}:{port}/{database}")
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 
-# Create a small global pool (safe for simple apps / scripts)
-_POOL = ConnectionPool(
-    conninfo=_make_conninfo(),
-    min_size=1,
-    max_size=5,
-    kwargs={"autocommit": False}  # we'll control transactions explicitly
-)
+def get_conn():
+    """Create and return a new psycopg connection."""
+    conninfo = _make_conninfo()
+    return psycopg.connect(conninfo)
 
 
 # -----------------------------
 # Schema initialization
 # -----------------------------
 def init_db() -> None:
-    """
-    Creates tables if they don't exist. Uses UUIDs from Python (no extension needed).
-    """
     ddl = """
     CREATE TABLE IF NOT EXISTS images (
         id UUID PRIMARY KEY,
@@ -67,14 +61,15 @@ def init_db() -> None:
     CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_posts_username ON posts (username);
     """
-    with _POOL.connection() as conn:
+
+    with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(ddl)
         conn.commit()
 
 
 # -----------------------------
-# Data models (lightweight)
+# Data models
 # -----------------------------
 @dataclass
 class Post:
@@ -82,14 +77,6 @@ class Post:
     username: str
     body: str
     image_id: Optional[uuid.UUID]
-    created_at: str  # ISO string returned from Postgres
-
-
-@dataclass
-class ImageMeta:
-    id: uuid.UUID
-    mime_type: Optional[str]
-    filename: Optional[str]
     created_at: str
 
 
@@ -102,10 +89,6 @@ def _guess_mime_type(path: str) -> Optional[str]:
 
 
 def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.UUID:
-    """
-    Reads a file from disk and inserts it into the images table as BYTEA.
-    Returns the image_id (UUID).
-    """
     image_id = uuid.uuid4()
     if mime_type is None:
         mime_type = _guess_mime_type(path)
@@ -113,7 +96,7 @@ def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.U
     with open(path, "rb") as f:
         data = f.read()
 
-    with _POOL.connection() as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -128,28 +111,13 @@ def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.U
 
 
 def insert_post(username: str, body: str, image_path: Optional[str] = None) -> uuid.UUID:
-    """
-    Inserts a post; if image_path is provided, stores the image first and links it.
-    Returns the post_id (UUID).
-    """
     post_id = uuid.uuid4()
     image_id = None
 
-    with _POOL.connection() as conn:
+    with get_conn() as conn:
         try:
             if image_path:
-                image_id = uuid.uuid4()
-                mime_type = _guess_mime_type(image_path)
-                with open(image_path, "rb") as f:
-                    data = f.read()
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO images (id, data, mime_type, filename)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        (image_id, psycopg.Binary(data), mime_type, os.path.basename(image_path))
-                    )
+                image_id = insert_image_from_path(image_path)
 
             with conn.cursor() as cur:
                 cur.execute(
@@ -171,10 +139,7 @@ def insert_post(username: str, body: str, image_path: Optional[str] = None) -> u
 # Retrieve helpers
 # -----------------------------
 def get_post(post_id: uuid.UUID) -> Optional[Post]:
-    """
-    Returns a single Post (without image data) or None if not found.
-    """
-    with _POOL.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT id, username, body, image_id, created_at
@@ -184,22 +149,21 @@ def get_post(post_id: uuid.UUID) -> Optional[Post]:
             (post_id,)
         )
         row = cur.fetchone()
-        if not row:
-            return None
-        return Post(
-            id=row["id"],
-            username=row["username"],
-            body=row["body"],
-            image_id=row["image_id"],
-            created_at=row["created_at"].isoformat()
-        )
+
+    if not row:
+        return None
+
+    return Post(
+        id=row["id"],
+        username=row["username"],
+        body=row["body"],
+        image_id=row["image_id"],
+        created_at=row["created_at"].isoformat()
+    )
 
 
 def list_posts(limit: int = 20, offset: int = 0) -> List[Post]:
-    """
-    Returns posts ordered by newest first (without image bytes).
-    """
-    with _POOL.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT id, username, body, image_id, created_at
@@ -224,11 +188,7 @@ def list_posts(limit: int = 20, offset: int = 0) -> List[Post]:
 
 
 def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
-    """
-    Returns {'data': bytes, 'mime_type': str | None, 'filename': str | None, 'created_at': iso}
-    or None if not found.
-    """
-    with _POOL.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT data, mime_type, filename, created_at
@@ -248,26 +208,3 @@ def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
         "filename": row["filename"],
         "created_at": row["created_at"].isoformat()
     }
-
-
-# -----------------------------
-# Utilities we might want
-# -----------------------------
-def delete_post(post_id: uuid.UUID) -> bool:
-    """
-    Deletes a post. If it referenced an image that no other posts use,
-    you may want to GC that image separately (not implemented here).
-    Returns True if deleted, False if not found.
-    """
-    with _POOL.connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM posts WHERE id = %s", (post_id,))
-            deleted = cur.rowcount > 0
-        conn.commit()
-    return deleted
-
-
-def count_posts() -> int:
-    with _POOL.connection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM posts")
-        return cur.fetchone()[0]
