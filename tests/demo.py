@@ -1,4 +1,4 @@
-from db import init_db, insert_post, get_post, get_image
+from src.db import init_db, insert_post, get_post, get_image
 from uuid import UUID
 
 if __name__ == "__main__":
