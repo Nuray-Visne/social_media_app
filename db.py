@@ -27,7 +27,6 @@ def _make_conninfo() -> str:
     user = os.getenv("PGUSER", "postgres")
     password = os.getenv("PGPASSWORD", "")
     database = os.getenv("PGDATABASE", "postgres")
-    print(f"postgresql://{user}:{password}@{host}:{port}/{database}")
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 
