@@ -10,7 +10,7 @@ if __name__ == "__main__":
     p2 = insert_post(username="Amy Stake", body="Felt cute, might delete later", image_path="./Testdata/p2.png")
     print("Inserted post with image:", p2)
     
-    p1 = insert_post(username="Joe King", body="Totally #nofilter", image_path="./Testdata/p3.png")
+    p3 = insert_post(username="Joe King", body="Totally #nofilter", image_path="./Testdata/p3.png")
     print("Inserted post with image:", p3)
 
     # Read back
