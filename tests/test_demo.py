@@ -1,4 +1,4 @@
-from src.db import init_db, insert_post, get_post, get_image
+from src.db import init_db, insert_post, get_post, get_image, get_latest_post
 from uuid import UUID
 
 if __name__ == "__main__":
@@ -22,3 +22,6 @@ if __name__ == "__main__":
     if post and post.image_id:
         img = get_image(post.image_id)
         print("Image mime:", img["mime_type"], "bytes:", len(img["data"]))
+    
+    latest = get_latest_post()
+    print(latest)
