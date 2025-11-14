@@ -1,7 +1,9 @@
 from src.db import init_db, insert_post, get_post, get_image, get_latest_post
 from uuid import UUID
 
-if __name__ == "__main__":
+
+
+def test_get_latest_post():
     init_db()
 
     # Insert some posts with an image
@@ -24,4 +26,6 @@ if __name__ == "__main__":
         print("Image mime:", img["mime_type"], "bytes:", len(img["data"]))
     
     latest = get_latest_post()
-    print(latest)
+    assert latest is not None
+    assert latest.username == "Joe King"
+    assert "nofilter" in latest.body
