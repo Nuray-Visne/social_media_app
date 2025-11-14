@@ -58,7 +58,7 @@ jobs:
 
     - name: Create test database
       run: |
-        psql -h localhost -U postgres -c "CREATE DATABASE testdb;"
+        psql -h localhost -U postgres -d postgres -c "CREATE DATABASE testdb;"
 
     - name: Lint with flake8
       run: |
