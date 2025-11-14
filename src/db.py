@@ -186,6 +186,12 @@ def list_posts(limit: int = 20, offset: int = 0) -> List[Post]:
     ]
 
 
+def get_latest_post() -> Optional[Post]:
+    posts = list_posts(limit=1)
+    return posts[0] if posts else None
+
+
+
 def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -207,3 +213,5 @@ def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
         "filename": row["filename"],
         "created_at": row["created_at"].isoformat()
     }
+
+
