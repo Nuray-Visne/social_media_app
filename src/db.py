@@ -215,3 +215,30 @@ def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
     }
 
 
+def search_posts(keyword: str, limit: int = 20, offset: int = 0) -> list[Post]:
+    """
+    Search posts by keyword in username or body (case-insensitive).
+    """
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id, username, body, image_id, created_at
+            FROM posts
+            WHERE username ILIKE %s OR body ILIKE %s
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            (f"%{keyword}%", f"%{keyword}%", limit, offset)
+        )
+        rows = cur.fetchall()
+
+    return [
+        Post(
+            id=r["id"],
+            username=r["username"],
+            body=r["body"],
+            image_id=r["image_id"],
+            created_at=r["created_at"].isoformat()
+        )
+        for r in rows
+    ]
