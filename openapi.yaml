@@ -1,0 +1,87 @@
+openapi: 3.0.3
+info:
+  title: Social Media API
+  version: 1.0.0
+  description: >
+    REST API for a simple social media app.
+    Supports creating posts, listing all posts, and searching by keyword or username.
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /posts:
+    post:
+      summary: Create a new post
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostCreate'
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+    get:
+      summary: List or search posts
+      operationId: getOrSearchPosts
+      parameters:
+        - name: search
+          in: query
+          description: Keyword or username to search for in posts
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of posts (filtered if search term is given)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Post'
+
+components:
+  schemas:
+    PostCreate:
+      type: object
+      required:
+        - username
+        - body
+      properties:
+        username:
+          type: string
+          example: "Joe King"
+        body:
+          type: string
+          example: "Totally #nofilter"
+        image_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: "9b2d1c2e-8a6d-4f31-b5b9-abc123def456"
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        body:
+          type: string
+        image_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+ 
