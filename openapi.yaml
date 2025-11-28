@@ -33,10 +33,28 @@ paths:
       parameters:
         - name: search
           in: query
-          description: Keyword or username to search for in posts
+          description: Returns the latest 20 posts by default, ordered by creation time (descending).
+           If a search term is provided, filters posts by matching username or body.
           required: false
           schema:
             type: string
+        - name: limit
+          in: query
+          description: Max number of posts to return (default 20)
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of posts to skip (for pagination)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
       responses:
         '200':
           description: List of posts (filtered if search term is given)
@@ -61,11 +79,10 @@ components:
         body:
           type: string
           example: "Totally #nofilter"
-        image_id:
+        image_path:
           type: string
-          format: uuid
           nullable: true
-          example: "9b2d1c2e-8a6d-4f31-b5b9-abc123def456"
+          example: "./Testdata/p3.png"
 
     Post:
       type: object
