@@ -1,8 +1,14 @@
 from typing import Optional
 from fastapi import FastAPI
-from src.db import insert_post, list_posts, search_posts
+from src.db import insert_post, list_posts, search_posts, init_db
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
+
 
 @app.get("/posts/")
 def get_posts(search: str = None, limit: int = 20, offset: int = 0):

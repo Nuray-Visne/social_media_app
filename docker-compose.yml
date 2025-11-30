@@ -1,0 +1,25 @@
+services:
+  restapi:
+    image: ai25m060/restapi:latest   
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:supersafepw1@db:5432/postgres
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=supersafepw1
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
