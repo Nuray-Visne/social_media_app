@@ -5,7 +5,7 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql://postgres:supersafepw1@db:5432/postgres
+      - DATABASE_URL=postgresql://postgres:mysecurepw123@db:5432/postgres
     depends_on:
       - db
 
@@ -13,7 +13,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=supersafepw1
+      - POSTGRES_PASSWORD=supersafepw1+
       - POSTGRES_DB=postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
