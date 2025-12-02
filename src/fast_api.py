@@ -7,7 +7,10 @@ app = FastAPI()
 
 @app.on_event("startup")
 def startup_event():
-    init_db()
+    try:
+        init_db()
+    except Exception:
+        raise RuntimeError("Database initialization failed")
 
 
 @app.get("/posts/")
