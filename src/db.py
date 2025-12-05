@@ -87,6 +87,24 @@ def _guess_mime_type(path: str) -> Optional[str]:
     return mt
 
 
+def insert_image_from_upload(data: bytes, mime_type: str, filename: str) -> uuid.UUID:
+    image_id = uuid.uuid4()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO images (id, data, mime_type, filename)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (image_id, psycopg.Binary(data), mime_type, filename)
+            )
+        conn.commit()
+
+    return image_id
+
+
+# for demo_setup file, which uses local image paths
 def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.UUID:
     image_id = uuid.uuid4()
     if mime_type is None:
@@ -109,15 +127,11 @@ def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.U
     return image_id
 
 
-def insert_post(username: str, body: str, image_path: Optional[str] = None) -> uuid.UUID:
+def insert_post(username: str, body: str, image_id: Optional[uuid.UUID] = None) -> uuid.UUID:
     post_id = uuid.uuid4()
-    image_id = None
 
     with get_conn() as conn:
         try:
-            if image_path:
-                image_id = insert_image_from_path(image_path)
-
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -132,6 +146,7 @@ def insert_post(username: str, body: str, image_path: Optional[str] = None) -> u
         except Exception:
             conn.rollback()
             raise
+
 
 
 # -----------------------------
