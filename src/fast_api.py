@@ -1,6 +1,6 @@
 from typing import Optional
-from fastapi import FastAPI
-from src.db import insert_post, list_posts, search_posts, init_db
+from fastapi import FastAPI, Form, File, UploadFile
+from src.db import insert_post, list_posts, search_posts, init_db, insert_image_from_upload
 
 app = FastAPI()
 
@@ -41,17 +41,16 @@ def get_posts(search: str = None, limit: int = 20, offset: int = 0):
 
 
 @app.post("/posts/")
-def create_post(username: str, body: str, image_path: Optional[str] = None):
-    """
-    Create a new post.
+async def create_post(
+    username: str = Form(...),
+    body: str = Form(...),
+    image: UploadFile = File(None)
+):
+    image_id = None
 
-    Parameters:
-    - username: Name of the user creating the post.
-    - body: Content of the post.
-    - image_path: Optional path to an image to attach to the post.
+    if image:
+        data = await image.read()
+        image_id = insert_image_from_upload(data, image.content_type, image.filename)
 
-    Returns:
-    - A dictionary with the generated post_id (UUID).
-    """
-    post_id = insert_post(username, body, image_path)
-    return {"post_id": str(post_id)}
+    post_id = insert_post(username, body, image_id)
+    return {"post_id": str(post_id), "image_id": str(image_id) if image_id else None}
