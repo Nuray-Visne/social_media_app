@@ -4,8 +4,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql://postgres:mysecurepw123@db:5432/postgres
+      PYTHONUNBUFFERED: ${PYTHONUNBUFFERED}
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       - db
     volumes:
@@ -16,9 +16,9 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=supersafepw1+
-      - POSTGRES_DB=postgres
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     
