@@ -1,6 +1,8 @@
 from typing import Optional
-from fastapi import FastAPI, Form, File, UploadFile
-from src.db import insert_post, list_posts, search_posts, init_db, insert_image_from_upload
+import uuid
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException
+from fastapi.responses import Response
+from src.db import insert_post, list_posts, search_posts, init_db, insert_image_from_upload, get_image
 
 app = FastAPI()
 
@@ -54,3 +56,16 @@ async def create_post(
 
     post_id = insert_post(username, body, image_id)
     return {"post_id": str(post_id), "image_id": str(image_id) if image_id else None}
+
+
+@app.get("/images/{image_id}")
+def get_image_endpoint(image_id: uuid.UUID):
+    img = get_image(image_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return Response(
+        content=img["data"],
+        media_type=img["mime_type"],
+        headers={"Content-Disposition": f"inline; filename={img['filename']}"}
+    )
