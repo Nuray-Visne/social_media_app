@@ -1,10 +1,25 @@
 from typing import Optional
 import uuid
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from src.db import insert_post, list_posts, search_posts, init_db, insert_image_from_upload, get_image
 
 app = FastAPI()
+
+# CORS for local frontend dev (Vite on 5173)
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
