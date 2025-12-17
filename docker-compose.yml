@@ -6,11 +6,10 @@ services:
     environment:
       PYTHONUNBUFFERED: ${PYTHONUNBUFFERED}
       DATABASE_URL: ${DATABASE_URL}
-      PYTHONPATH: /app
     depends_on:
       - db
     volumes:
-    - ./backend:/app/backend
+    - ./backend/src:/app/src
     command: uvicorn src.fast_api:app --host 0.0.0.0 --port 8000 --reload
     #i↑ this runs FastAPI with auto reload
 
