@@ -67,5 +67,7 @@ jobs:
         flake8 backend/src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Test with pytest
+      env:
+        PYTHONPATH: backend
       run: |
-        PYTHONPATH=. pytest -o testpaths=tests -v
+        pytest -o testpaths=tests -v
