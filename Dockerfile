@@ -10,7 +10,7 @@ COPY requirements.txt ./
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend source only (frontend not needed in image)
+# Copy backend source into /app/src (container expects this layout)
 COPY backend/src ./src
 
 # Expose port 8000 (default for Uvicorn)

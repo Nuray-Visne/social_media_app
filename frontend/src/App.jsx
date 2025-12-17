@@ -37,7 +37,7 @@ export default function App() {
 
   return (
     <div className="container">
-      <h1>Social Media App</h1>
+      <h1>TravelShare</h1>
       <div className="toolbar">
         <input
           placeholder="Search by username or text..."
