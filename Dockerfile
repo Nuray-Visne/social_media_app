@@ -5,13 +5,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy requirements file
-COPY requirements.txt .
+COPY requirements.txt ./
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire application
-COPY . .
+# Copy backend source only (frontend not needed in image)
+COPY backend/src ./src
 
 # Expose port 8000 (default for Uvicorn)
 EXPOSE 8000
