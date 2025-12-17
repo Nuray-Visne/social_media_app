@@ -127,7 +127,22 @@ def insert_image_from_path(path: str, mime_type: Optional[str] = None) -> uuid.U
     return image_id
 
 
-def insert_post(username: str, body: str, image_id: Optional[uuid.UUID] = None) -> uuid.UUID:
+def insert_post(
+    username: str,
+    body: str,
+    image_id: Optional[uuid.UUID] = None,
+    image_path: Optional[str] = None,
+) -> uuid.UUID:
+    """Insert a post; optionally create image from an existing file path.
+
+    image_path is used in tests/demo data to attach a local image.
+    """
+    if image_id and image_path:
+        raise ValueError("Provide either image_id or image_path, not both")
+
+    if image_path:
+        image_id = insert_image_from_path(image_path)
+
     post_id = uuid.uuid4()
 
     with get_conn() as conn:
