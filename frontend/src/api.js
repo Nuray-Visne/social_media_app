@@ -26,4 +26,8 @@ export function getImageUrl(imageId) {
   return new URL(`/images/${imageId}`, API_URL).toString()
 }
 
+export function getThumbnailUrl(imageId) {
+  return new URL(`/images/${imageId}/thumbnail`, API_URL).toString()
+}
+
 export { API_URL }
