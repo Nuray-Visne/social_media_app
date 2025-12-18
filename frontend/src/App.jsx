@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchPosts, createPost, getImageUrl } from './api'
+import { fetchPosts, createPost, getImageUrl, getThumbnailUrl } from './api'
 import PostForm from './components/PostForm'
 import './styles.css'
 
@@ -8,6 +8,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [selectedImage, setSelectedImage] = useState(null)
 
   const load = async (kw = '') => {
     setLoading(true)
@@ -62,11 +63,28 @@ export default function App() {
             </div>
             <p>{p.body}</p>
             {p.image_id && (
-              <img className="post-image" src={getImageUrl(p.image_id)} alt="attachment" />
+              <img 
+                className="post-image" 
+                src={getThumbnailUrl(p.image_id)} 
+                alt="attachment" 
+                onClick={() => setSelectedImage(p.image_id)}
+                style={{ cursor: 'pointer' }}
+                title="Click to view full size"
+              />
             )}
           </li>
         ))}
       </ul>
+
+      {/* Full-size image modal */}
+      {selectedImage && (
+        <div className="modal" onClick={() => setSelectedImage(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setSelectedImage(null)}>×</button>
+            <img src={getImageUrl(selectedImage)} alt="Full size" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
