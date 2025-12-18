@@ -9,7 +9,8 @@ services:
     depends_on:
       - db
     volumes:
-    - ./backend/src:/app/src
+    - ./backend:/app
+      - ./Testdata:/app/Testdata
     command: uvicorn src.fast_api:app --host 0.0.0.0 --port 8000 --reload
     #i↑ this runs FastAPI with auto reload
 
