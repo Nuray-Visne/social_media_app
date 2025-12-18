@@ -46,6 +46,8 @@ def init_db() -> None:
         data BYTEA NOT NULL,
         mime_type TEXT,
         filename TEXT,
+        thumbnail_data BYTEA NULL,
+        thumbnail_generated BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -272,3 +274,53 @@ def search_posts(keyword: str, limit: int = 20, offset: int = 0) -> list[Post]:
         )
         for r in rows
     ]
+
+
+# -----------------------------
+# Thumbnail helpers
+# -----------------------------
+def get_image_thumbnail(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    """
+    Get thumbnail version of an image. Falls back to full image if thumbnail not ready.
+    """
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT thumbnail_data, thumbnail_generated, data, mime_type, filename, created_at
+            FROM images
+            WHERE id = %s
+            """,
+            (image_id,)
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return None
+
+    # Use thumbnail if available, otherwise use full image
+    image_data = bytes(row["thumbnail_data"]) if row["thumbnail_generated"] and row["thumbnail_data"] else bytes(row["data"])
+
+    return {
+        "data": image_data,
+        "mime_type": row["mime_type"],
+        "filename": row["filename"],
+        "created_at": row["created_at"].isoformat(),
+        "is_thumbnail": row["thumbnail_generated"]
+    }
+
+
+def store_thumbnail(image_id: uuid.UUID, thumbnail_data: bytes) -> None:
+    """
+    Store the resized thumbnail for an image.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE images
+                SET thumbnail_data = %s, thumbnail_generated = TRUE
+                WHERE id = %s
+                """,
+                (psycopg.Binary(thumbnail_data), image_id)
+            )
+        conn.commit()
