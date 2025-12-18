@@ -1,9 +1,12 @@
 from typing import Optional
 import uuid
+import os
+import json
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi import Query
+import pika
 from src.db import (
     insert_post,
     list_posts,
@@ -12,9 +15,17 @@ from src.db import (
     insert_image_from_upload,
     insert_image_from_path,
     get_image,
+    get_image_thumbnail,
 )
 
 app = FastAPI()
+
+# RabbitMQ configuration
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "guest")
+QUEUE_NAME = "image_resize_queue"
 
 # CORS for local frontend dev (Vite on 5173)
 origins = [
@@ -29,6 +40,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def send_resize_message(image_id: uuid.UUID):
+    """Send a message to RabbitMQ to process image resize."""
+    try:
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+        parameters = pika.ConnectionParameters(
+            host=RABBITMQ_HOST,
+            port=RABBITMQ_PORT,
+            credentials=credentials,
+            connection_attempts=3,
+            retry_delay=2
+        )
+        connection = pika.BlockingConnection(parameters)
+        channel = connection.channel()
+        
+        # Declare queue (idempotent)
+        channel.queue_declare(queue=QUEUE_NAME, durable=True)
+        
+        # Send message
+        message = json.dumps({"image_id": str(image_id), "action": "resize"})
+        channel.basic_publish(
+            exchange='',
+            routing_key=QUEUE_NAME,
+            body=message,
+            properties=pika.BasicProperties(delivery_mode=2)  # Make message persistent
+        )
+        
+        connection.close()
+        print(f"📤 Sent resize message for image: {image_id}")
+    except Exception as e:
+        print(f"⚠️  Failed to send resize message: {e}")
+        # Don't fail the upload if RabbitMQ is down
 
 
 @app.on_event("startup")
@@ -98,12 +142,17 @@ async def create_post(
         data = await image.read()
         image_id = insert_image_from_upload(data, image.content_type, image.filename)
 
+    # Send image to resize queue if we have an image
+    if image_id:
+        send_resize_message(image_id)
+
     post_id = insert_post(username_val, body_val, image_id)
     return {"post_id": str(post_id), "image_id": str(image_id) if image_id else None}
 
 
 @app.get("/images/{image_id}")
 def get_image_endpoint(image_id: uuid.UUID):
+    """Get full-size image."""
     img = get_image(image_id)
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -112,4 +161,32 @@ def get_image_endpoint(image_id: uuid.UUID):
         content=img["data"],
         media_type=img["mime_type"],
         headers={"Content-Disposition": f"inline; filename={img['filename']}"}
+    )
+
+
+@app.get("/images/{image_id}/thumbnail")
+def get_thumbnail_endpoint(image_id: uuid.UUID):
+    """Get thumbnail version of image. Falls back to full image if thumbnail not ready."""
+    img = get_image_thumbnail(image_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    # If thumbnail is not yet generated and we're serving the full image as a fallback,
+    # instruct browsers NOT to cache the response. Otherwise they may cache the full-size
+    # image and never re-fetch the thumbnail once it is ready.
+    is_thumb = bool(img.get("is_thumbnail", False))
+    headers = {
+        "Content-Disposition": f"inline; filename=thumb_{img['filename']}",
+        "X-Is-Thumbnail": str(is_thumb)
+    }
+    if is_thumb:
+        # Safe to cache aggressively once the real thumbnail exists
+        headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        # Prevent caching the temporary fallback
+        headers["Cache-Control"] = "no-store"
+
+    return Response(
+        content=img["data"],
+        media_type=img["mime_type"],
+        headers=headers
     )
