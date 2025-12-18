@@ -1,4 +1,4 @@
-from src.db import init_db, insert_post
+from db import init_db, insert_post
 
 
 if __name__ == "__main__":
