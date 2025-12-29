@@ -30,7 +30,7 @@ jobs:
       PGHOST: localhost
       PGPORT: 5432
       PGUSER: postgres
-      PGPASSWORD: supersafepw1+
+      PGPASSWORD: mysecurepw123
       PGDATABASE: testdb
       PYTHONPATH: backend
 
