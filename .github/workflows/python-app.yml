@@ -17,25 +17,31 @@ jobs:
         ports:
           - 5432:5432
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: supersafepw1+
-          POSTGRES_DB: postgres
+          POSTGRES_USER: ${{ env.PGUSER }}
+          POSTGRES_PASSWORD: ${{ env.PGPASSWORD }}
+          POSTGRES_DB: ${{ env.PGDATABASE }}
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U ${{ env.PGUSER }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      PGHOST: localhost
-      PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: mysecurepw123
-      PGDATABASE: testdb
+      PGHOST: ${{ env.PGHOST }}
+      PGPORT: ${{ env.PGPORT }}
+      PGUSER: ${{ env.PGUSER }}
+      PGPASSWORD: ${{ env.PGPASSWORD }}
+      PGDATABASE: ${{ env.PGDATABASE }}
       PYTHONPATH: backend
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Load .env variables
+      run: |
+        set -a
+        source .env
+        set +a
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
@@ -52,7 +58,7 @@ jobs:
     - name: Wait for PostgreSQL to be ready
       run: |
         echo "Waiting for Postgres..."
-        until pg_isready -h localhost -p 5432 -U postgres; do
+        until pg_isready -h $PGHOST -p $PGPORT -U $PGUSER; do
           sleep 1
         done
         echo "Postgres is ready!"
