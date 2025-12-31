@@ -2,14 +2,29 @@ openapi: 3.0.3
 info:
   title: Social Media API
   version: 1.0.0
-  description: >
-    REST API for a simple social media app.
-    Supports creating posts, listing all posts, and searching by keyword or username.
+  description: |
+    REST API for a simple social media app with AI trip planner.
 servers:
   - url: http://localhost:8000
     description: Local development server
-
 paths:
+  /plan-trip:
+    post:
+      summary: AI Trip Planner (powered by Dockerized Ollama/phi3.mini)
+      operationId: planTrip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripPlanRequest'
+      responses:
+        '200':
+          description: Trip plan generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripPlanResponse'
   /posts:
     post:
       summary: Create a new post
@@ -33,8 +48,7 @@ paths:
       parameters:
         - name: search
           in: query
-          description: Returns the latest 20 posts by default, ordered by creation time (descending).
-           If a search term is provided, filters posts by matching username or body.
+          description: Returns the latest 20 posts by default, ordered by creation time (descending). If a search term is provided, filters posts by matching username or body.
           required: false
           schema:
             type: string
@@ -64,7 +78,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Post'
-
   /images/{image_id}:
     get:
       summary: Get full-size image
@@ -91,7 +104,6 @@ paths:
                 format: binary
         '404':
           description: Image not found
-
   /images/{image_id}/thumbnail:
     get:
       summary: Get thumbnail version of image
@@ -125,8 +137,39 @@ paths:
         '404':
           description: Image not found
 
+
 components:
   schemas:
+    TripPlanRequest:
+      type: object
+      required:
+        - country
+        - concept
+        - budget
+        - days
+      properties:
+        country:
+          type: string
+          example: "Italy"
+        concept:
+          type: string
+          example: "food and culture"
+        budget:
+          type: string
+          example: "2000"
+        days:
+          type: string
+          example: "7"
+        people:
+          type: string
+          example: "2"
+    TripPlanResponse:
+      type: object
+      properties:
+        plan:
+          type: string
+          example: |
+            Day 1: Arrive in Rome, visit the Colosseum...
     PostCreate:
       type: object
       required:
@@ -143,7 +186,6 @@ components:
           type: string
           nullable: true
           example: "./Testdata/p3.png"
-
     Post:
       type: object
       properties:

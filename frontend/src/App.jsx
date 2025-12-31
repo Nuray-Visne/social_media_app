@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchPosts, createPost, getImageUrl, getThumbnailUrl } from './api'
 import PostForm from './components/PostForm'
+import TripPlanner from './components/TripPlanner'
 import './styles.css'
 
 export default function App() {

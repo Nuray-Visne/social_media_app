@@ -1,3 +1,4 @@
+ 
 services:
   restapi:
     image: ai25m060/restapi:latest   
@@ -78,6 +79,13 @@ services:
       - db
       - rabbitmq
     restart: unless-stopped
-
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
 volumes:
   postgres_data:
+  ollama_data:

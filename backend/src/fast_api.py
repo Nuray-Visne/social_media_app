@@ -7,10 +7,13 @@ import uuid
 import os
 import json
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from fastapi import Query
+from fastapi import Query, Body
 import pika
+import re
+import time
 from src.db import (
     insert_post,
     list_posts,
@@ -33,6 +36,8 @@ RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "guest")
 QUEUE_NAME = "image_resize_queue"
+
+
 
 # CORS for local frontend dev (Vite on 5173)
 origins = [
@@ -193,3 +198,141 @@ def get_thumbnail_endpoint(image_id: uuid.UUID):
         media_type=img["mime_type"],
         headers=headers
     )
+
+
+# Trip planner request model
+class TripPlanRequest(BaseModel):
+    city: str
+    concept: str
+    budget: str
+    days: int
+    people: int=1
+
+
+@app.post("/plan-trip/")
+async def plan_trip(request: TripPlanRequest):
+    start_time = time.time()
+    print("[TripPlanner] Start /plan-trip/")
+
+    if request.days < 1:
+        raise HTTPException(status_code=400, detail="'days' must be a positive integer")
+    if request.people < 1:
+        raise HTTPException(status_code=400, detail="'people' must be a positive integer")
+
+    prompt = f'''
+        YOU MUST FOLLOW THESE RULES EXACTLY:
+        1. Output MUST be valid JSON.
+        2. The JSON MUST contain ONLY one key: "days".
+        3. "days" MUST be an array with EXACTLY {request.days} items.
+        4. Each item MUST have:
+             - "day": number (starting from 1)
+             - "summary": 1–2 short sentences only, and MUST mention budget tips or estimated costs for that day.
+        5. The plan MUST fit within a total budget of {request.budget} euros for the whole trip.
+        6. Do NOT add extra days.
+        7. Do NOT add explanations or text outside JSON.
+
+        Example for 1 day:
+        {{
+            "days": [
+                {{ "day": 1, "summary": "Explore the old town and visit a local art gallery. Keep costs under 30 euros by using public transport and free museum entry." }}
+            ]
+        }}
+
+        Now generate the plan.
+
+        City: {request.city}
+        People: {request.people}
+        Concept: {request.concept}
+        Budget: {request.budget} euros
+        '''
+    print(f"[TripPlanner] Prompt built in {time.time() - start_time:.2f}s")
+
+    ollama_url = "http://ollama:11434/api/chat"
+
+    data = {
+        "model": "phi3:mini",
+        "stream": False,   
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful trip advisor. Give friendly, and practical travel plans. Limit your answer to 5 short sentences per day."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    }
+
+    try:
+        ollama_start = time.time()
+        response = httpx.post(
+            ollama_url,
+            json=data,
+            timeout=300  
+        )
+        print(f"[TripPlanner] Ollama call took {time.time() - ollama_start:.2f}s")
+        response.raise_for_status()
+
+        result = response.json()
+
+        plan_raw = result["message"]["content"]
+        print("[TripPlanner] Raw LLM output:", plan_raw)
+
+        # Strip Markdown code block markers if present
+        
+        cleaned = re.sub(r'^```[a-zA-Z]*\s*', '', plan_raw.strip())
+        cleaned = re.sub(r'```$', '', cleaned.strip())
+
+        # Try to parse JSON
+        try:
+            parsed = json.loads(cleaned)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"LLM did not return valid JSON: {plan_raw}")
+
+        # Validate and correct days
+        days_requested = int(request.days)
+        days = parsed.get("days", [])
+        # Only keep the requested number of days
+        days = days[:days_requested]
+        # Only keep 'day' and 'summary' fields
+        cleaned_days = []
+        for d in days:
+            if "day" in d and "summary" in d:
+                cleaned_days.append({"day": d["day"], "summary": d["summary"]})
+        # If not enough valid days, raise error
+        if len(cleaned_days) != days_requested:
+            raise HTTPException(status_code=500, detail=f"Model returned {len(cleaned_days)} valid days instead of {days_requested}")
+
+        # Convert to frontend format
+        plan_lines = [f"Day {d['day']}: {d['summary']}" for d in cleaned_days]
+        plan_text = "\n".join(plan_lines)
+
+        print(f"[TripPlanner] Total /plan-trip/ time: {time.time() - start_time:.2f}s")
+        return {"plan": plan_text}
+
+    except httpx.HTTPError as e:
+        print(f"[TripPlanner] HTTPError after {time.time() - start_time:.2f}s: {e}")
+        raise HTTPException(status_code=502, detail=f"Ollama HTTP error: {str(e)}")
+    except KeyError as e:
+        print(f"[TripPlanner] KeyError after {time.time() - start_time:.2f}s: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected Ollama response: {str(response.json())}")
+    except Exception as e:
+        print(f"[TripPlanner] Exception after {time.time() - start_time:.2f}s: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Update /test-ollama/ endpoint to use the correct model name
+@app.get("/test-ollama/")
+def test_ollama():
+    try:
+        response = httpx.post("http://ollama:11434/api/chat", json={
+            "model": "phi3:mini",
+            "stream": False,
+            "messages": [{"role": "user", "content": "Hello!"}]
+        })
+        response.raise_for_status()
+        return {"result": response.json()}
+    except Exception as e:
+        return {"error": str(e)}
+
+    
