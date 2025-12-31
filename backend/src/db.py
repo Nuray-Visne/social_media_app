@@ -56,7 +56,9 @@ def init_db() -> None:
         username TEXT NOT NULL,
         body TEXT NOT NULL,
         image_id UUID NULL REFERENCES images(id) ON DELETE SET NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        sentiment_label TEXT,
+        sentiment_score FLOAT
     );
 
     CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts (created_at DESC);
@@ -79,6 +81,8 @@ class Post:
     body: str
     image_id: Optional[uuid.UUID]
     created_at: str
+    sentiment_label: Optional[str] = None
+    sentiment_score: Optional[float] = None
 
 
 # -----------------------------
@@ -134,6 +138,8 @@ def insert_post(
     body: str,
     image_id: Optional[uuid.UUID] = None,
     image_path: Optional[str] = None,
+    sentiment_label: Optional[str] = None,
+    sentiment_score: Optional[float] = None,
 ) -> uuid.UUID:
     """Insert a post; optionally create image from an existing file path.
 
@@ -152,10 +158,10 @@ def insert_post(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO posts (id, username, body, image_id)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO posts (id, username, body, image_id, sentiment_label, sentiment_score)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (post_id, username, body, image_id)
+                    (post_id, username, body, image_id, sentiment_label, sentiment_score)
                 )
 
             conn.commit()
@@ -163,6 +169,38 @@ def insert_post(
         except Exception:
             conn.rollback()
             raise
+
+
+# Combined search: keyword, sentiment, or both (or neither)
+def search_posts_combined(keyword: str = None, sentiment_label: str = None, limit: int = 20, offset: int = 0) -> List[Post]:
+    query = "SELECT id, username, body, image_id, created_at, sentiment_label, sentiment_score FROM posts"
+    conditions = []
+    params = []
+    if keyword:
+        conditions.append("body ILIKE %s")
+        params.append(f"%{keyword}%")
+    if sentiment_label:
+        conditions.append("sentiment_label = %s")
+        params.append(sentiment_label)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+    return [
+        Post(
+            id=r["id"],
+            username=r["username"],
+            body=r["body"],
+            image_id=r["image_id"],
+            created_at=r["created_at"].isoformat(),
+            sentiment_label=r.get("sentiment_label"),
+            sentiment_score=r.get("sentiment_score")
+        )
+        for r in rows
+    ]
 
 
 
@@ -173,7 +211,7 @@ def get_post(post_id: uuid.UUID) -> Optional[Post]:
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
-            SELECT id, username, body, image_id, created_at
+            SELECT id, username, body, image_id, created_at, sentiment_label, sentiment_score
             FROM posts
             WHERE id = %s
             """,
@@ -189,7 +227,9 @@ def get_post(post_id: uuid.UUID) -> Optional[Post]:
         username=row["username"],
         body=row["body"],
         image_id=row["image_id"],
-        created_at=row["created_at"].isoformat()
+        created_at=row["created_at"].isoformat(),
+        sentiment_label=row.get("sentiment_label"),
+        sentiment_score=row.get("sentiment_score")
     )
 
 
@@ -197,7 +237,7 @@ def list_posts(limit: int = 20, offset: int = 0) -> List[Post]:
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
-            SELECT id, username, body, image_id, created_at
+            SELECT id, username, body, image_id, created_at, sentiment_label, sentiment_score
             FROM posts
             ORDER BY created_at DESC
             LIMIT %s OFFSET %s
@@ -212,7 +252,9 @@ def list_posts(limit: int = 20, offset: int = 0) -> List[Post]:
             username=r["username"],
             body=r["body"],
             image_id=r["image_id"],
-            created_at=r["created_at"].isoformat()
+            created_at=r["created_at"].isoformat(),
+            sentiment_label=r.get("sentiment_label"),
+            sentiment_score=r.get("sentiment_score")
         )
         for r in rows
     ]
@@ -247,33 +289,6 @@ def get_image(image_id: uuid.UUID) -> Optional[Dict[str, Any]]:
     }
 
 
-def search_posts(keyword: str, limit: int = 20, offset: int = 0) -> list[Post]:
-    """
-    Search posts by keyword in username or body (case-insensitive).
-    """
-    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(
-            """
-            SELECT id, username, body, image_id, created_at
-            FROM posts
-            WHERE username ILIKE %s OR body ILIKE %s
-            ORDER BY created_at DESC
-            LIMIT %s OFFSET %s
-            """,
-            (f"%{keyword}%", f"%{keyword}%", limit, offset)
-        )
-        rows = cur.fetchall()
-
-    return [
-        Post(
-            id=r["id"],
-            username=r["username"],
-            body=r["body"],
-            image_id=r["image_id"],
-            created_at=r["created_at"].isoformat()
-        )
-        for r in rows
-    ]
 
 
 # -----------------------------

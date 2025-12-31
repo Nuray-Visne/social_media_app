@@ -1,8 +1,9 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-export async function fetchPosts(search = '') {
+export async function fetchPosts(keyword = '', sentiment = '') {
   const url = new URL('/posts/', API_URL)
-  if (search) url.searchParams.set('search', search)
+  if (keyword) url.searchParams.set('keyword', keyword)
+  if (sentiment) url.searchParams.set('sentiment', sentiment)
   const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
   if (!res.ok) throw new Error('Failed to fetch posts')
   return res.json()
