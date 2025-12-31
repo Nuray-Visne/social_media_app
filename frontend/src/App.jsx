@@ -58,32 +58,37 @@ export default function App() {
         <button onClick={() => { setSearch(''); setSentiment(''); load('', '') }}>Clear</button>
       </div>
 
-      <PostForm onCreate={onCreate} />
-
-      {loading && <p>Loading…</p>}
-      {error && <p className="error">{error}</p>}
-
-      <ul className="posts">
-        {posts.map((p) => (
-          <li key={p.id} className="post">
-            <div className="header">
-              <strong>@{p.username}</strong>
-              <span className="date">{new Date(p.created_at).toLocaleString()}</span>
-            </div>
-            <p>{p.body}</p>
-            {p.image_id && (
-              <img 
-                className="post-image" 
-                src={getThumbnailUrl(p.image_id)} 
-                alt="attachment" 
-                onClick={() => setSelectedImage(p.image_id)}
-                style={{ cursor: 'pointer' }}
-                title="Click to view full size"
-              />
-            )}
-          </li>
-        ))}
-      </ul>
+      <div className="main-layout">
+        <div className="main-content">
+          <PostForm onCreate={onCreate} />
+          {loading && <p>Loading…</p>}
+          {error && <p className="error">{error}</p>}
+          <ul className="posts">
+            {posts.map((p) => (
+              <li key={p.id} className="post">
+                <div className="header">
+                  <strong>@{p.username}</strong>
+                  <span className="date">{new Date(p.created_at).toLocaleString()}</span>
+                </div>
+                <p>{p.body}</p>
+                {p.image_id && (
+                  <img 
+                    className="post-image" 
+                    src={getThumbnailUrl(p.image_id)} 
+                    alt="attachment" 
+                    onClick={() => setSelectedImage(p.image_id)}
+                    style={{ cursor: 'pointer' }}
+                    title="Click to view full size"
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="sidebar">
+          <TripPlanner />
+        </div>
+      </div>
 
       {/* Full-size image modal */}
       {selectedImage && (
