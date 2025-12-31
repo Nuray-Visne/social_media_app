@@ -1,6 +1,5 @@
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 import uuid
 import os
 import json
@@ -15,7 +14,6 @@ import re
 import time
 from src.db import (
     insert_post,
-    list_posts,
     init_db,
     insert_image_from_upload,
     insert_image_from_path,
