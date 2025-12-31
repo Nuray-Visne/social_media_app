@@ -206,13 +206,17 @@ class TripPlanRequest(BaseModel):
     days: str
     people: str = "1"
 
+import time
+
 @app.post("/plan-trip/")
 async def plan_trip(request: TripPlanRequest):
+    start_time = time.time()
+    print("[TripPlanner] Start /plan-trip/")
     prompt = (
-        f"Plan a {request.days}-day trip to {request.city} for {request.people} people "
-        f"focused on {request.concept} with a budget of {request.budget} euros. "
-        "Give a day-by-day itinerary. Limit your answer to 5 short sentences per day."
+        f"Plan a trip to {request.city} for {request.people} people, focused on {request.concept} with a budget of {request.budget} euros. "
+        f"Strictly plan exactly {request.days} days, no more, no less. Give a high-level day-by-day itinerary. Use only 1-2 short sentences per day. Do not include detailed descriptions or explanations."
     )
+    print(f"[TripPlanner] Prompt built in {time.time() - start_time:.2f}s")
 
     ollama_url = "http://ollama:11434/api/chat"
 
@@ -222,7 +226,7 @@ async def plan_trip(request: TripPlanRequest):
         "messages": [
             {
                 "role": "system",
-                "content": "You are a helpful trip advisor. Give detailed, friendly, and practical travel plans."
+                "content": "You are a helpful trip advisor. Give friendly, and practical travel plans. Limit your answer to 5 short sentences per day."
             },
             {
                 "role": "user",
@@ -232,23 +236,29 @@ async def plan_trip(request: TripPlanRequest):
     }
 
     try:
+        ollama_start = time.time()
         response = httpx.post(
             ollama_url,
             json=data,
             timeout=300  
         )
+        print(f"[TripPlanner] Ollama call took {time.time() - ollama_start:.2f}s")
         response.raise_for_status()
 
         result = response.json()
         plan = result["message"]["content"]
 
+        print(f"[TripPlanner] Total /plan-trip/ time: {time.time() - start_time:.2f}s")
         return {"plan": plan}
 
     except httpx.HTTPError as e:
+        print(f"[TripPlanner] HTTPError after {time.time() - start_time:.2f}s: {e}")
         raise HTTPException(status_code=502, detail=f"Ollama HTTP error: {str(e)}")
     except KeyError as e:
+        print(f"[TripPlanner] KeyError after {time.time() - start_time:.2f}s: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected Ollama response: {str(response.json())}")
     except Exception as e:
+        print(f"[TripPlanner] Exception after {time.time() - start_time:.2f}s: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Update /test-ollama/ endpoint to use the correct model name
