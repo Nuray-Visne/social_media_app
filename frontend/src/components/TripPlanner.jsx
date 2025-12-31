@@ -13,7 +13,7 @@ export default function TripPlanner() {
 
   const submit = async (e) => {
     e.preventDefault()
-    console.log('Submitting trip plan', { country, concept, budget, days, people })
+    console.log('Submitting trip plan', { city, concept, budget, days, people })
     setLoading(true)
     setPlan('')
     setError('')
@@ -21,7 +21,7 @@ export default function TripPlanner() {
       const res = await fetch(`${API_URL}/plan-trip/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ country: city, concept, budget, days, people }),
+        body: JSON.stringify({ city, concept, budget, days, people }),
       })
       if (!res.ok) throw new Error('Failed to get plan')
       const data = await res.json()
