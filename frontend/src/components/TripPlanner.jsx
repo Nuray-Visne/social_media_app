@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { API_URL } from '../api'
 
 export default function TripPlanner() {
-  const [country, setCountry] = useState('')
+  const [city, setCity] = useState('')
   const [concept, setConcept] = useState('')
   const [budget, setBudget] = useState('')
   const [days, setDays] = useState('')
@@ -21,7 +21,7 @@ export default function TripPlanner() {
       const res = await fetch(`${API_URL}/plan-trip/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ country, concept, budget, days, people }),
+        body: JSON.stringify({ country: city, concept, budget, days, people }),
       })
       if (!res.ok) throw new Error('Failed to get plan')
       const data = await res.json()
@@ -37,8 +37,8 @@ export default function TripPlanner() {
     <form onSubmit={submit} className="trip-planner-form">
       <h2>AI Trip Planner</h2>
       <div className="row">
-        <label>Country</label>
-        <input value={country} onChange={e => setCountry(e.target.value)} placeholder="Country" required />
+        <label>City</label>
+        <input value={city} onChange={e => setCity(e.target.value)} placeholder="City" required />
       </div>
       <div className="row">
         <label>Concept</label>
