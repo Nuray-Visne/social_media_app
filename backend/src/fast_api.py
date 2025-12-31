@@ -1,11 +1,13 @@
+
 from typing import Optional
 import uuid
 import os
 import json
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from fastapi import Query
+from fastapi import Query, Body
 import pika
 from src.db import (
     insert_post,
@@ -17,6 +19,8 @@ from src.db import (
     get_image,
     get_image_thumbnail,
 )
+import httpx
+
 
 app = FastAPI()
 
@@ -26,6 +30,8 @@ RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "guest")
 QUEUE_NAME = "image_resize_queue"
+
+
 
 # CORS for local frontend dev (Vite on 5173)
 origins = [
@@ -190,3 +196,73 @@ def get_thumbnail_endpoint(image_id: uuid.UUID):
         media_type=img["mime_type"],
         headers=headers
     )
+
+
+# Trip planner request model
+class TripPlanRequest(BaseModel):
+    country: str
+    concept: str
+    budget: str
+    days: str
+    people: str = "1"
+
+@app.post("/plan-trip/")
+async def plan_trip(request: TripPlanRequest):
+    prompt = (
+        f"Plan a {request.days}-day trip to {request.country} for {request.people} people "
+        f"focused on {request.concept} with a budget of {request.budget} euros. "
+        "Give a day-by-day itinerary.Limit your answer to 5 short sentences per day."
+    )
+
+    ollama_url = "http://ollama:11434/api/chat"
+
+    data = {
+        "model": "phi3:mini",
+        "stream": False,   
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful trip advisor. Give detailed, friendly, and practical travel plans."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    }
+
+    try:
+        response = httpx.post(
+            ollama_url,
+            json=data,
+            timeout=300  
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        plan = result["message"]["content"]
+
+        return {"plan": plan}
+
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Ollama HTTP error: {str(e)}")
+    except KeyError as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected Ollama response: {str(response.json())}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Update /test-ollama/ endpoint to use the correct model name
+@app.get("/test-ollama/")
+def test_ollama():
+    try:
+        response = httpx.post("http://ollama:11434/api/chat", json={
+            "model": "phi3:mini",
+            "stream": False,
+            "messages": [{"role": "user", "content": "Hello!"}]
+        })
+        response.raise_for_status()
+        return {"result": response.json()}
+    except Exception as e:
+        return {"error": str(e)}
+
+    
