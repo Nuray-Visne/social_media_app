@@ -21,7 +21,13 @@ export default function TripPlanner() {
       const res = await fetch(`${API_URL}/plan-trip/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ city, concept, budget, days, people }),
+        body: JSON.stringify({
+          city,
+          concept,
+          budget,
+          days: Number(days),
+          people: Number(people)
+        }),
       })
       if (!res.ok) throw new Error('Failed to get plan')
       const data = await res.json()
@@ -42,7 +48,7 @@ export default function TripPlanner() {
       </div>
       <div className="row">
         <label>Concept</label>
-        <input value={concept} onChange={e => setConcept(e.target.value)} placeholder="art, culture, history..." required />
+        <input value={concept} onChange={e => setConcept(e.target.value)} placeholder="Art, culture, history..." required />
       </div>
       <div className="row">
         <label>Budget (EUR)</label>
