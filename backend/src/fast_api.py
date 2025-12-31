@@ -1,8 +1,6 @@
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import pipeline
-from typing import Optional
 import uuid
 import os
 import json
@@ -12,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi import Query, Body
 import pika
+import httpx
 import re
 import time
 from src.db import (
@@ -27,8 +26,29 @@ from src.db import (
 
 app = FastAPI()
 
-# Load sentiment analysis pipeline
-sentiment_analyzer = pipeline("sentiment-analysis")
+# Sentiment analysis using Ollama
+def analyze_sentiment_ollama(text):
+    ollama_url = "http://ollama:11434/api/chat"
+    prompt = f"Classify the sentiment of this text as POSITIVE, NEGATIVE, or NEUTRAL. Only return the label.\nText: '{text}'"
+    data = {
+        "model": "phi3:mini",
+        "stream": False,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+    try:
+        response = httpx.post(ollama_url, json=data, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+        label = result["message"]["content"].strip().upper()
+        # Accept only valid labels
+        if label not in ("POSITIVE", "NEGATIVE", "NEUTRAL"):
+            label = "NEUTRAL"
+        return label, 1.0  # Score is always 1.0 (Ollama does not provide probability)
+    except Exception as e:
+        print(f"[Sentiment] Ollama error: {e}")
+        return "NEUTRAL", 0.0
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
@@ -144,10 +164,9 @@ async def create_post(
         data = await image.read()
         image_id = insert_image_from_upload(data, image.content_type, image.filename)
 
-    # Sentiment analysis
-    sentiment = sentiment_analyzer(body_val)[0]
-    sentiment_label = sentiment["label"]
-    sentiment_score = float(sentiment["score"])
+
+    # Sentiment analysis using Ollama
+    sentiment_label, sentiment_score = analyze_sentiment_ollama(body_val)
 
     # Send image to resize queue if we have an image
     if image_id:
