@@ -200,7 +200,7 @@ def get_thumbnail_endpoint(image_id: uuid.UUID):
 
 # Trip planner request model
 class TripPlanRequest(BaseModel):
-    country: str
+    city: str
     concept: str
     budget: str
     days: str
@@ -209,9 +209,9 @@ class TripPlanRequest(BaseModel):
 @app.post("/plan-trip/")
 async def plan_trip(request: TripPlanRequest):
     prompt = (
-        f"Plan a {request.days}-day trip to {request.country} for {request.people} people "
+        f"Plan a {request.days}-day trip to {request.city} for {request.people} people "
         f"focused on {request.concept} with a budget of {request.budget} euros. "
-        "Give a day-by-day itinerary.Limit your answer to 5 short sentences per day."
+        "Give a day-by-day itinerary. Limit your answer to 5 short sentences per day."
     )
 
     ollama_url = "http://ollama:11434/api/chat"
