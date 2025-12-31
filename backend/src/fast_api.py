@@ -1,4 +1,7 @@
 
+from fastapi import FastAPI
+from pydantic import BaseModel
+from transformers import pipeline
 from typing import Optional
 import uuid
 import os
@@ -14,17 +17,18 @@ import time
 from src.db import (
     insert_post,
     list_posts,
-    search_posts,
     init_db,
     insert_image_from_upload,
     insert_image_from_path,
     get_image,
     get_image_thumbnail,
-)
-import httpx
-
+    search_posts_combined
+)   
 
 app = FastAPI()
+
+# Load sentiment analysis pipeline
+sentiment_analyzer = pipeline("sentiment-analysis")
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
@@ -77,9 +81,9 @@ def send_resize_message(image_id: uuid.UUID):
         )
         
         connection.close()
-        print(f"📤 Sent resize message for image: {image_id}")
+        print(f"Sent resize message for image: {image_id}")
     except Exception as e:
-        print(f"⚠️  Failed to send resize message: {e}")
+        print(f"Failed to send resize message: {e}")
         # Don't fail the upload if RabbitMQ is down
 
 
@@ -92,29 +96,19 @@ def startup_event():
 
 
 @app.get("/posts/")
-def get_posts(search: str = None, limit: int = 20, offset: int = 0):
-
+def get_posts(
+    keyword: str = Query(None, description="Keyword to search in post body"),
+    sentiment: str = Query(None, description="Sentiment label, e.g., POSITIVE or NEGATIVE"),
+    limit: int = 20,
+    offset: int = 0
+):
     """
-    Retrieve a list of posts.
-
-    - If a search keyword is provided, filters posts by matching
-      the keyword in the `username` or `body` (case-insensitive).
-    - If no search is provided, returns the latest posts.
-
-    Query Parameters:
-    - search: Optional string to filter posts.
-    - limit: Number of posts to return (default: 20).
-    - offset: Offset for pagination (default: 0).
-
-    Returns:
-    - A dictionary containing a list of posts, where each post includes:
-      id, username, body, image_id, and created_at.
+    Retrieve a list of posts, optionally filtered by keyword and/or sentiment.
+    Returns all fields, including sentiment_label and sentiment_score.
     """
-    if search:
-        posts = search_posts(search, limit, offset)
-    else:
-        posts = list_posts(limit, offset)
+    posts = search_posts_combined(keyword, sentiment, limit, offset)
     return {"posts": [post.__dict__ for post in posts]}
+
 
 
 
@@ -150,12 +144,18 @@ async def create_post(
         data = await image.read()
         image_id = insert_image_from_upload(data, image.content_type, image.filename)
 
+    # Sentiment analysis
+    sentiment = sentiment_analyzer(body_val)[0]
+    sentiment_label = sentiment["label"]
+    sentiment_score = float(sentiment["score"])
+
     # Send image to resize queue if we have an image
     if image_id:
         send_resize_message(image_id)
 
-    post_id = insert_post(username_val, body_val, image_id)
-    return {"post_id": str(post_id), "image_id": str(image_id) if image_id else None}
+    post_id = insert_post(username_val, body_val, image_id, None, sentiment_label, sentiment_score)
+    return {"post_id": str(post_id), "image_id": str(image_id) if image_id else None, "sentiment": sentiment_label, "sentiment_score": sentiment_score}
+
 
 
 @app.get("/images/{image_id}")
