@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi import Query, Body
 import pika
+import re
+import time
 from src.db import (
     insert_post,
     list_posts,
@@ -203,19 +205,46 @@ class TripPlanRequest(BaseModel):
     city: str
     concept: str
     budget: str
-    days: str
-    people: str = "1"
+    days: int
+    people: int=1
 
-import time
 
 @app.post("/plan-trip/")
 async def plan_trip(request: TripPlanRequest):
     start_time = time.time()
     print("[TripPlanner] Start /plan-trip/")
-    prompt = (
-        f"Plan a trip to {request.city} for {request.people} people, focused on {request.concept} with a budget of {request.budget} euros. "
-        f"Strictly plan exactly {request.days} days, no more, no less. Give a high-level day-by-day itinerary. Use only 1-2 short sentences per day. Do not include detailed descriptions or explanations."
-    )
+
+    if request.days < 1:
+        raise HTTPException(status_code=400, detail="'days' must be a positive integer")
+    if request.people < 1:
+        raise HTTPException(status_code=400, detail="'people' must be a positive integer")
+
+    prompt = f'''
+        YOU MUST FOLLOW THESE RULES EXACTLY:
+        1. Output MUST be valid JSON.
+        2. The JSON MUST contain ONLY one key: "days".
+        3. "days" MUST be an array with EXACTLY {request.days} items.
+        4. Each item MUST have:
+             - "day": number (starting from 1)
+             - "summary": 1–2 short sentences only, and MUST mention budget tips or estimated costs for that day.
+        5. The plan MUST fit within a total budget of {request.budget} euros for the whole trip.
+        6. Do NOT add extra days.
+        7. Do NOT add explanations or text outside JSON.
+
+        Example for 1 day:
+        {{
+            "days": [
+                {{ "day": 1, "summary": "Explore the old town and visit a local art gallery. Keep costs under 30 euros by using public transport and free museum entry." }}
+            ]
+        }}
+
+        Now generate the plan.
+
+        City: {request.city}
+        People: {request.people}
+        Concept: {request.concept}
+        Budget: {request.budget} euros
+        '''
     print(f"[TripPlanner] Prompt built in {time.time() - start_time:.2f}s")
 
     ollama_url = "http://ollama:11434/api/chat"
@@ -246,10 +275,41 @@ async def plan_trip(request: TripPlanRequest):
         response.raise_for_status()
 
         result = response.json()
-        plan = result["message"]["content"]
+
+        plan_raw = result["message"]["content"]
+        print("[TripPlanner] Raw LLM output:", plan_raw)
+
+        # Strip Markdown code block markers if present
+        
+        cleaned = re.sub(r'^```[a-zA-Z]*\s*', '', plan_raw.strip())
+        cleaned = re.sub(r'```$', '', cleaned.strip())
+
+        # Try to parse JSON
+        try:
+            parsed = json.loads(cleaned)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"LLM did not return valid JSON: {plan_raw}")
+
+        # Validate and correct days
+        days_requested = int(request.days)
+        days = parsed.get("days", [])
+        # Only keep the requested number of days
+        days = days[:days_requested]
+        # Only keep 'day' and 'summary' fields
+        cleaned_days = []
+        for d in days:
+            if "day" in d and "summary" in d:
+                cleaned_days.append({"day": d["day"], "summary": d["summary"]})
+        # If not enough valid days, raise error
+        if len(cleaned_days) != days_requested:
+            raise HTTPException(status_code=500, detail=f"Model returned {len(cleaned_days)} valid days instead of {days_requested}")
+
+        # Convert to frontend format
+        plan_lines = [f"Day {d['day']}: {d['summary']}" for d in cleaned_days]
+        plan_text = "\n".join(plan_lines)
 
         print(f"[TripPlanner] Total /plan-trip/ time: {time.time() - start_time:.2f}s")
-        return {"plan": plan}
+        return {"plan": plan_text}
 
     except httpx.HTTPError as e:
         print(f"[TripPlanner] HTTPError after {time.time() - start_time:.2f}s: {e}")
