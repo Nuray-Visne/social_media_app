@@ -8,13 +8,14 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [sentiment, setSentiment] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
 
-  const load = async (kw = '') => {
+  const load = async (kw = '', sent = '') => {
     setLoading(true)
     setError('')
     try {
-      const data = await fetchPosts(kw)
+      const data = await fetchPosts(kw, sent)
       setPosts(data.posts || [])
     } catch (e) {
       setError('Failed to load posts')
@@ -30,7 +31,7 @@ export default function App() {
   const onCreate = async (payload) => {
     try {
       await createPost(payload)
-      await load(search)
+      await load(search, sentiment)
     } catch (e) {
       setError('Failed to create post')
     }
@@ -45,8 +46,15 @@ export default function App() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button onClick={() => load(search)}>Search</button>
-        <button onClick={() => { setSearch(''); load('') }}>Clear</button>
+        <select value={sentiment} onChange={e => setSentiment(e.target.value)}>
+          <option value="">Sentiment</option>
+          <option value="POSITIVE">Positive</option>
+          <option value="NEGATIVE">Negative</option>
+           {/* Neutral kept for another model */}
+           <option value="NEUTRAL">Neutral</option>
+        </select>
+        <button onClick={() => load(search, sentiment)}>Search</button>
+        <button onClick={() => { setSearch(''); setSentiment(''); load('', '') }}>Clear</button>
       </div>
 
       <PostForm onCreate={onCreate} />
