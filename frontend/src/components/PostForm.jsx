@@ -9,6 +9,7 @@ export default function PostForm({ onCreate }) {
     e.preventDefault()
     if (!username.trim() || !body.trim()) return
     await onCreate({ username: username.trim(), body: body.trim(), image })
+    setUsername('')
     setBody('')
     setImage(null)
   }
