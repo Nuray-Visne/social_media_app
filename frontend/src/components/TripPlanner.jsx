@@ -41,7 +41,7 @@ export default function TripPlanner() {
 
   return (
     <form onSubmit={submit} className="trip-planner-form">
-      <h2>AI Trip Planner</h2>
+      <h2>Trip Planner</h2>
       <div className="row">
         <label>City</label>
         <input value={city} onChange={e => setCity(e.target.value)} placeholder="City" required />
